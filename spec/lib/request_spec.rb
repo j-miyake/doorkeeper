@@ -95,6 +95,65 @@ RSpec.describe Doorkeeper::Request do
       end
     end
 
+    context "with a custom client_secret_jwt method registered next to private_key_jwt" do
+      let(:client_secret_jwt_method) do
+        Class.new do
+          def self.matches_request?(request)
+            header = JWT.decode(request.request_parameters["client_assertion"], nil, false).last
+            header["alg"].start_with?("HS")
+          rescue JWT::DecodeError
+            false
+          end
+
+          def self.authenticate(_request)
+            nil
+          end
+        end
+      end
+
+      let(:request) do
+        mock_request(
+          request_parameters: {
+            client_assertion: JWT.encode({ "iss" => "id" }, assertion_key, assertion_alg),
+            client_assertion_type: Doorkeeper::OAuth::ClientAuthentication::PrivateKeyJwt::CLIENT_ASSERTION_TYPE,
+          },
+        )
+      end
+
+      before do
+        require "jwt"
+        @original_methods = Doorkeeper::ClientAuthentication::Registry.registered_methods.deep_dup
+        Doorkeeper::ClientAuthentication.register(:client_secret_jwt, client_secret_jwt_method)
+
+        Doorkeeper.configure do
+          orm DOORKEEPER_ORM
+          client_authentication %i[client_secret_jwt private_key_jwt]
+        end
+      end
+
+      after do
+        Doorkeeper::ClientAuthentication::Registry.registered_methods = @original_methods
+      end
+
+      context "when the assertion is HMAC-signed" do
+        let(:assertion_key) { "shared-secret" }
+        let(:assertion_alg) { "HS256" }
+
+        it "selects the client_secret_jwt method" do
+          expect(strategy).to eq(client_secret_jwt_method)
+        end
+      end
+
+      context "when the assertion is signed with an asymmetric key" do
+        let(:assertion_key) { OpenSSL::PKey::RSA.generate(2048) }
+        let(:assertion_alg) { "RS256" }
+
+        it "selects the private_key_jwt method" do
+          expect(strategy).to eq(Doorkeeper::OAuth::ClientAuthentication::PrivateKeyJwt)
+        end
+      end
+    end
+
     context "with a deprecated client_credentials config mixing symbols and a callable" do
       before do
         allow(Kernel).to receive(:warn)

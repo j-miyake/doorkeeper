@@ -7,6 +7,7 @@ User-visible changes worth mentioning.
 
 ## main
 
+- Fix: the built-in `private_key_jwt` client authentication method no longer matches an HMAC-signed (`HS256` / `HS384` / `HS512`) client assertion, which is `client_secret_jwt` (OIDC Core §9). A `client_secret_jwt` method registered with `Doorkeeper::ClientAuthentication.register` can now be enabled next to `private_key_jwt`: previously both matched every such request, so it was refused with `invalid_request` as using more than one client authentication method (RFC 6749 §2.3).
 - [#1959] A custom `access_token_generator` now receives the token's `resource` (RFC 8707), so a JWT generator can set `aud`.
 - [#1960] Ignore the port of `http://localhost` redirect URIs like that of loopback IP literals (RFC 8252 §7.3 / §8.3).
 - [#1964] `rake doorkeeper:db:cleanup:expired_tokens` no longer raises when `access_token_expires_in` is `nil`; tokens with an individual `expires_in` are still removed once expired (#1963).

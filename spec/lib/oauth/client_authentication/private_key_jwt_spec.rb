@@ -88,6 +88,26 @@ RSpec.describe Doorkeeper::OAuth::ClientAuthentication::PrivateKeyJwt do
 
       expect(described_class.matches_request?(request)).to be false
     end
+
+    # An HMAC-signed assertion is client_secret_jwt (OIDC Core §9), which
+    # shares the request shape of private_key_jwt.
+    %w[HS256 HS384 HS512].each do |alg|
+      it "does not match an assertion signed with #{alg} (client_secret_jwt)" do
+        assertion = build_assertion(key: "shared-secret", alg: alg, header_kid: nil)
+
+        expect(described_class.matches_request?(request_with(assertion))).to be false
+      end
+    end
+
+    it "matches an assertion whose header cannot be decoded" do
+      expect(described_class.matches_request?(request_with("not-a-jwt"))).to be true
+    end
+
+    it "matches an unsigned assertion" do
+      assertion = build_assertion(key: nil, alg: "none", header_kid: nil)
+
+      expect(described_class.matches_request?(request_with(assertion))).to be true
+    end
   end
 
   describe ".authenticate" do

@@ -42,12 +42,24 @@ module Doorkeeper
         # guard's memory.
         MAX_LIFETIME = 3600
 
+        # HMAC-signed assertions are client_secret_jwt (OIDC Core §9). It sends
+        # the same client_assertion / client_assertion_type parameters, so
+        # these are told apart by the "alg" header.
+        HMAC_ALGORITHMS = %w[HS256 HS384 HS512].freeze
+
+        # An HMAC-signed assertion is left to a client_secret_jwt method the
+        # host application may register, so that both methods can be enabled
+        # without every client_secret_jwt request also counting as
+        # private_key_jwt (RFC 6749 §2.3 multiple-methods check). Any other
+        # assertion, including one whose header cannot be decoded, still
+        # matches and is refused by +authenticate+.
         def self.matches_request?(request)
           params = request.request_parameters.with_indifferent_access
 
           request.post? &&
             params[:client_assertion].present? &&
-            params[:client_assertion_type] == CLIENT_ASSERTION_TYPE
+            params[:client_assertion_type] == CLIENT_ASSERTION_TYPE &&
+            !hmac_signed?(params[:client_assertion])
         end
 
         def self.authenticate(request)
@@ -114,6 +126,19 @@ module Doorkeeper
           nil
         end
         private_class_method :unverified_client_id
+
+        # Reads the unverified JOSE header without the "jwt" gem: request
+        # matching runs for every client-authenticating request, and the gem
+        # is only required once an assertion is authenticated.
+        def self.hmac_signed?(assertion)
+          encoded_header = assertion.to_s.split(".", 2).first
+          header = JSON.parse(Base64.urlsafe_decode64(encoded_header.to_s))
+
+          header.is_a?(Hash) && HMAC_ALGORITHMS.include?(header["alg"])
+        rescue ArgumentError, EncodingError, JSON::ParserError
+          false
+        end
+        private_class_method :hmac_signed?
 
         def self.verified_claims(assertion, client_id, jwk_set, audiences)
           claims, = ::JWT.decode(

@@ -414,7 +414,7 @@ end
 
 Two things are worth keeping in mind when writing one.
 
-**Keep `matches_request?` as narrow as possible.** RFC 6749 §2.3 forbids a client from using more than one authentication method in a single request, and Doorkeeper enforces that across the whole registry rather than only the enabled methods. A method that matches too broadly therefore collides with a built-in one and the request is answered with `invalid_request`.
+**Keep `matches_request?` as narrow as possible.** RFC 6749 §2.3 forbids a client from using more than one authentication method in a single request, and Doorkeeper enforces that across the whole registry rather than only the enabled methods. A method that matches too broadly therefore collides with a built-in one and the request is answered with `invalid_request`. A `client_secret_jwt` method (OIDC Core §9) sends the same `client_assertion` and `client_assertion_type` parameters as the built-in `private_key_jwt`, so it should match only assertions whose `alg` header is `HS256`, `HS384` or `HS512`; `private_key_jwt` leaves those assertions to it.
 
 **The returned credentials are resolved with `by_uid_and_secret`.** A blank secret resolves only a public (non-confidential) client — that is what the built-in `none` method relies on — while a confidential client is resolved only when the secret matches the registered one. A method that establishes the client's identity by some other proof, such as a client certificate or a signed assertion, therefore still has to produce the registered secret for a confidential client.
 
